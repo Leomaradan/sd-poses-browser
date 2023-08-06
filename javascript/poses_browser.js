@@ -1,270 +1,229 @@
-let poses_browser_debug = true
-let poses_browser_state = "free"
+const posesBrowser = () => {
+    const generateImage = async (poses_browser_image) => {
+        const canvas = document.createElement("canvas")
+        const image = document.createElement("img")
+        image.src = poses_browser_image.src
 
-function poses_browser_delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)) }
+        await image.decode()
 
+        canvas.width = image.width
+        canvas.height = image.height
 
-async function poses_browser_get_image_for_ext(poses_browser_image) {
-    if (poses_browser_debug) {
-        console.log("poses_browser_get_image_for_ext:start")
+        canvas.getContext("2d").drawImage(image, 0, 0)
+
+        return canvas.toDataURL()
     }
 
-    const canvas = document.createElement("canvas")
-    const image = document.createElement("img")
-    image.src = poses_browser_image.src
-
-    await image.decode()
-
-    canvas.width = image.width
-    canvas.height = image.height
-
-    canvas.getContext("2d").drawImage(image, 0, 0)
-
-    if (poses_browser_debug) console.log("poses_browser_get_image_for_ext:end")
-    return canvas.toDataURL()
-}
-
-async function poses_browser_lock(reason) {
-    if (poses_browser_debug) console.log("poses_browser_lock:start")
-    // Wait until lock removed
-    let i = 0
-    while (poses_browser_state != "free") {
-        await poses_browser_delay(200)
-        i = i + 1
-        if (i === 150) {
-            throw new Error("Still locked after 30 seconds. Please Reload UI.")
+    const enable = (tabName, controlnetNum) => {
+        const input = gradioApp().querySelector(`#${tabName}_controlnet_ControlNet-${controlnetNum}_controlnet_enable_checkbox input`);
+        if (input && input.checked === false) {
+            input.click()
         }
     }
-    // Lock
-    poses_browser_state = reason
-    if (poses_browser_debug) console.log("poses_browser_lock:end")
-}
 
-async function poses_browser_unlock() {
-    if (poses_browser_debug) console.log("poses_browser_unlock:start")
-    poses_browser_state = "free"
-    if (poses_browser_debug) console.log("poses_browser_unlock:end")
-}
+    const disable = (tabName, controlnetNum) => {
+        const input = gradioApp().querySelector(`#${tabName}_controlnet_ControlNet-${controlnetNum}_controlnet_enable_checkbox input`);
+        if (input && input.checked === true) {
+            input.click()
+        }
+    }
 
-async function poses_browser_gototab(tabname) {
-    if (poses_browser_debug) console.log("poses_browser_gototab:start")
-    await poses_browser_lock("poses_browser_gototab")
+    const setModel = (tabName, controlnetNum, model) => {
+        // Currently not working
+        /*
+        const input = gradioApp().querySelector(`#${tabName}_controlnet_ControlNet-${controlnetNum}_controlnet_model_dropdown input`);
+        if (input && input.value !== model) {
+            input.value = model;
+            updateInput(input);
+        }
+        */
+    }
 
-    tabNav = gradioApp().querySelector(".tab-nav")
-    const tabNavChildren = tabNav.children
-    let tabNavButtonNum
-    if (typeof tabname === "number") {
-        let buttonCnt = 0
-        for (let i = 0; i < tabNavChildren.length; i++) {
-            if (tabNavChildren[i].tagName === "BUTTON") {
-                if (buttonCnt === tabname) {
-                    tabNavButtonNum = i
-                    break
-                }
-                buttonCnt++
+    const clearImage = (input) => {
+        try {
+            if (input.previousElementSibling &&
+                input.previousElementSibling.previousElementSibling &&
+                input.previousElementSibling.previousElementSibling.querySelector("button[aria-label='Clear']")) {
+                input.previousElementSibling.previousElementSibling.querySelector("button[aria-label='Clear']").click()
             }
-        }
-    } else {
-        for (let i = 0; i < tabNavChildren.length; i++) {
-            if (tabNavChildren[i].tagName === "BUTTON" && tabNavChildren[i].textContent.trim() === tabname) {
-                tabNavButtonNum = i
-                break
-            }
+        } catch (e) {
+            console.error(e)
         }
     }
-    let tabNavButton = tabNavChildren[tabNavButtonNum]
-    tabNavButton.click()
 
-    // Wait for click-action to complete
-    const startTime = Date.now()
-    // 60 seconds in milliseconds
-    const timeout = 60000
-
-    await poses_browser_delay(100)
-    while (!tabNavButton.classList.contains("selected")) {
-        tabNavButton = tabNavChildren[tabNavButtonNum]
-        if (Date.now() - startTime > timeout) {
-            throw new Error("poses_browser_gototab: 60 seconds have passed")
-        }
-        await poses_browser_delay(200)
+    const setImage = (input, list) => {
+        clearImage(input);
+        input.value = "";
+        input.files = list;
+        const event = new Event("change", { "bubbles": true, "composed": true });
+        input.dispatchEvent(event);
     }
 
-    await poses_browser_unlock()
-    if (poses_browser_debug) console.log("poses_browser_gototab:end")
-}
-
-function poses_browser_webui_current_tab() {
-    if (poses_browser_debug) console.log("poses_browser_webui_current_tab:start")
-    const tabs = gradioApp().querySelectorAll("#tabs > [id^='tab_']")
-    let id
-    for (const element of tabs) {
-        if (element.style.display === "block") {
-            id = element.id
-            break
-        }
+    const controlNetUnits = (tabName) => {
+        return gradioApp().getElementById(tabName + "_#txt2img_controlnet .cnet-unit-tab").length
     }
-    if (poses_browser_debug) console.log("poses_browser_webui_current_tab:end")
-    return id
-}
 
-async function poses_browser_controlnet_send(image, toTabNum, controlnetNum) {
-    if (poses_browser_debug) console.log("poses_browser_controlnet_send:start")
-    // Logic originally based on github.com/fkunn1326/openpose-editor
-    let list = undefined;
-    if (image) {
-        const dataURL = await poses_browser_get_image_for_ext(image)
+    const prepareImage = async (image, controlnetNum) => {
+
+        const dataURL = await generateImage(image)
         const blob = await (await fetch(dataURL)).blob()
         const dt = new DataTransfer()
         dt.items.add(new File([blob], `PoseBrowser${controlnetNum}.png`, { type: blob.type }))
-        list = dt.files
+        const list = dt.files
+
+        return list;
     }
 
-    const model = controlnetNum === 0 ? 'control_v11p_sd15_openpose' : 'control_v11f1p_sd15_depth';
+    const getControlNet = (tabName) => {
+        const controlnet = gradioApp().getElementById(tabName + "_controlnet");
 
-    await poses_browser_gototab(toTabNum)
-    const current_tabid = poses_browser_webui_current_tab()
-    const current_tab = current_tabid.replace("tab_", "")
-    const tab_controlnet = gradioApp().getElementById(current_tab + "_controlnet")
-    let accordion = tab_controlnet.querySelector("#controlnet > .label-wrap > .icon")
-    if (accordion.style.transform.includes("rotate(90deg)")) {
-        accordion.click()
-        // Wait for click-action to complete
-        const startTime = Date.now()
-        // 60 seconds in milliseconds
-        const timeout = 60000
+        const accordion = controlnet.querySelector(".gradio-accordion .label-wrap")
+        if (!accordion.classList.contains("open")) {
+            accordion.click();
+        }
 
-        await poses_browser_delay(100)
-        while (accordion.style.transform.includes("rotate(90deg)")) {
-            accordion = tab_controlnet.querySelector("#controlnet > .label-wrap > .icon")
-            if (Date.now() - startTime > timeout) {
-                throw new Error("poses_browser_controlnet_send/accordion: 60 seconds have passed")
-            }
-            await poses_browser_delay(200)
+        return controlnet;
+    }
+
+    const goToControlNetTab = (tabName, controlnetNum) => {
+        const controlnet = getControlNet(tabName);
+
+        const tabs = controlnet.querySelectorAll("div.tab-nav > button");
+
+        if (tabs !== null && tabs.length > 1) {
+            tabs[controlnetNum].click();
         }
     }
 
-    let inputImage
-    let inputContainer
+    const getControlNetInputs = (tabName, controlnetNum) => {
 
-    controlnetType = gradioApp().getElementById(current_tab + "_controlnet_ControlNet_input_image") !== null ? "single" : "multi"
+        return new Promise((resolve) => {
 
-    if (controlnetType == "single") {
-        inputImage = gradioApp().getElementById(current_tab + "_controlnet_ControlNet_input_image")
+            const controlnet = getControlNet(tabName);
+
+            goToControlNetTab(tabName, controlnetNum);
+
+            const input = controlnet.querySelectorAll("input[type='file']")[controlnetNum * 2];
+
+            if (input == null) {
+                const callback = (observer) => {
+                    input = controlnet.querySelector("input[type='file']");
+                    if (input == null) {
+                        resolve(null);
+                        return;
+                    } else {
+                        resolve(input);
+                        observer.disconnect();
+                    }
+                }
+                const observer = new MutationObserver(callback);
+                observer.observe(controlnet, { childList: true });
+            } else {
+                resolve(input);
+            }
+        });
+    }
+
+    const clearControlnet = async (tabName, controlnetNum) => {
+        console.log('Clearing controlnet', tabName, controlnetNum);
+        const input = await getControlNetInputs(tabName, controlnetNum);
+
+        if (input == null) {
+            return;
+        }
+
+        clearImage(input);
+        disable(tabName, controlnetNum);
+        setModel(tabName, controlnetNum, 'None');
+    }
+
+    const sendToControlNet = async (image, tabName, controlnetNum, model) => {
+        console.log('Send image to controlnet', tabName, controlnetNum);
+        const list = await prepareImage(image, controlnetNum);
+
+        const input = await getControlNetInputs(tabName, controlnetNum);
+
+        if (input == null) {
+            return false;
+        }
+
+        setImage(input, list);
+        enable(tabName, controlnetNum);
+        setModel(tabName, controlnetNum, model);
+
+        return true;
+    }
+
+    const getImages = () => {
+        const pose = gradioApp().querySelector('#poses_browser_pose_image > img')
+        const depth = gradioApp().querySelector('#poses_browser_depth_image > img')
+        const canny = gradioApp().querySelector('#poses_browser_canny_image > img')
+
+        return { pose, depth, canny }
+    }
+
+    return {
+        sendToControlNet,
+        clearControlnet,
+        getImages,
+        controlNetUnits,
+        goToControlNetTab,
+    }
+}
+
+const poses_browser = posesBrowser()
+
+const poses_browser_send = async (tabName) => {
+    const { pose, depth, canny } = poses_browser.getImages();
+
+    window[`switch_to_${tabName}`]();
+
+    const numberOfTabs = poses_browser.controlNetUnits(tabName);
+    if (numberOfTabs !== 0) {
+
+        let tabNum = 0;
+        if (pose) {
+            await poses_browser.sendToControlNet(pose, tabName, tabNum, 'control_v11p_sd15_openpose [cab727d4]');
+            tabNum++;
+        }
+
+        if (depth && tabNum < numberOfTabs) {
+            await poses_browser.sendToControlNet(depth, tabName, tabNum, 'control_v11f1p_sd15_depth [cfd03158]');
+            tabNum++;
+        }
+
+        if (canny && tabNum < numberOfTabs) {
+            await poses_browser.sendToControlNet(canny, tabName, tabNum, 'control_v11p_sd15_canny [d14c016b]');
+            tabNum++;
+        }
+
+        for (let i = tabNum; i <= numberOfTabs; i++) {
+            await poses_browser.clearControlnet(tabName, i);
+        }
+
+        poses_browser.goToControlNetTab(tabName, 0);
+
     } else {
-        const tabs = gradioApp().getElementById(current_tab + "_controlnet_tabs")
-        const tab_num = (parseInt(controlnetNum) + 1).toString()
-        tab_button = tabs.querySelector(".tab-nav > button:nth-child(" + tab_num + ")")
-        tab_button.click()
-        // Wait for click-action to complete
-        const startTime = Date.now()
-        // 60 seconds in milliseconds
-        const timeout = 60000
+        if (pose) {
+            await poses_browser.sendToControlNet(pose, tabName, 0, 'control_v11p_sd15_openpose [cab727d4]');
+        } else if (depth) {
+            await poses_browser.sendToControlNet(depth, tabName, 0, 'control_v11f1p_sd15_depth [cfd03158]');
+        } else if (canny) {
+            await poses_browser.sendToControlNet(canny, tabName, 0, 'control_v11p_sd15_canny [d14c016b]');
 
-        await poses_browser_delay(100)
-        while (!tab_button.classList.contains("selected")) {
-            tab_button = tabs.querySelector(".tab-nav > button:nth-child(" + tab_num + ")")
-            if (Date.now() - startTime > timeout) {
-                throw new Error("poses_browser_controlnet_send/tabs: 60 seconds have passed")
-            }
-            await poses_browser_delay(200)
         }
-        inputImage = gradioApp().getElementById(current_tab + "_controlnet_ControlNet-" + controlnetNum.toString() + "_input_image")
     }
-    try {
-        inputContainer = inputImage.querySelector('div[data-testid="image"]')
-    } catch (e) { }
-
-    const input = inputContainer.querySelector("input[type='file']")
-
-    let clear
-    try {
-        clear = inputContainer.querySelector("button[aria-label='Remove Image']")
-        if (clear) {
-            clear.click()
-        }
-    } catch (e) {
-        console.error(e)
-    }
-
-    try {
-        // Wait for click-action to complete
-        const startTime = Date.now()
-        // 60 seconds in milliseconds
-        const timeout = 60000
-        while (clear) {
-            clear = inputContainer.querySelector("button[aria-label='Remove Image']")
-            if (Date.now() - startTime > timeout) {
-                throw new Error("poses_browser_controlnet_send/clear: 60 seconds have passed")
-            }
-            await poses_browser_delay(200)
-        }
-    } catch (e) {
-        console.error(e)
-    }
-
-    input.value = ""
-    input.files = list
-
-
-    /*const modelDropdown = gradioApp().getElementById(current_tab + "_controlnet_ControlNet-" + controlnetNum.toString() + "_controlnet_model_dropdown");
- 
-    modelDropdown.querySelector('input').click();
- 
-    // Wait for click-action to complete
-    const startTime = Date.now()
-    // 60 seconds in milliseconds
-    const timeout = 60000
- 
-    await poses_browser_delay(100)
-    while (!modelDropdown.querySelector("ul")) {
-        if (Date.now() - startTime > timeout) {
-            throw new Error("poses_browser_controlnet_send/modelDropdown: 60 seconds have passed")
-        }
-        await poses_browser_delay(200)
-    }
- 
-    modelDropdown.querySelectorAll("li").forEach(li => {
-        if (li.innerText.includes(model)) {
-            li.click()
-        }
-    });*/
-
-
-
-    const event = new Event("change", { "bubbles": true, "composed": true })
-    input.dispatchEvent(event)
-
-    if (poses_browser_debug) console.log("poses_browser_controlnet_send:end")
 }
-
-const getImages = () => {
-    const pose = gradioApp().querySelector('#poses_browser_pose_image > img')
-    const depth = gradioApp().querySelector('#poses_browser_depth_image > img')
-
-    return { pose, depth }
-}
-//txt2img_controlnet_ControlNet-0_controlnet_enable_checkbox
-//txt2img_controlnet_ControlNet-0_controlnet_model_dropdown
 
 async function poses_browser_send_txt2img() {
-    const { pose, depth } = getImages();
-    await poses_browser_controlnet_send(pose, 0, 0);
-    await poses_browser_controlnet_send(depth, 0, 1);
-
-    //poses_browser_controlnet_send(0, tab_base_tag, image_index, controlnetNum, controlnetType)
+    poses_browser_send('txt2img');
 }
 
 async function poses_browser_send_img2img() {
-    const { pose, depth } = getImages();
-    //poses_browser_controlnet_send(1, tab_base_tag, image_index, controlnetNum, controlnetType)
-    await poses_browser_controlnet_send(pose, 1, 0),
-        await poses_browser_controlnet_send(depth, 1, 1);
+    poses_browser_send('img2img');
 }
 
 const poses_browser_filter = (tag) => {
-    console.log("poses_browser_filter:start")
-    console.log({tag});
-
     const searchTextarea = gradioApp().querySelector('#poses_browser_search textarea');
 
     searchTextarea.value = tag;

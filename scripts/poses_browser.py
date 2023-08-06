@@ -1,6 +1,8 @@
 from modules import script_callbacks
-import scripts.pose_browser.settings
-import scripts.pose_browser.ui_tabs
+import settings
+from ui_tabs import PosesBrowserPage
 
-script_callbacks.on_ui_tabs(scripts.pose_browser.ui_tabs.on_ui_tabs)
-script_callbacks.on_ui_settings(scripts.pose_browser.settings.on_ui_settings)
+ui_tabs = PosesBrowserPage()
+
+script_callbacks.on_ui_tabs(ui_tabs.on_ui_tabs)
+script_callbacks.on_ui_settings(settings.on_ui_settings)
