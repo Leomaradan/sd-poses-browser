@@ -1,10 +1,9 @@
-import modules.scripts as scripts
 import gradio as gr
 import logging
 import html
-from pathlib import Path
-from modules import shared
 import os
+from pathlib import Path
+from modules import shared, scripts
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -53,6 +52,7 @@ def get_poses_dir() -> Path:
         logger.exception(f"Failed to create poses directory {poses_dir}")
     return poses_dir
 
+
 def get_token_pose() -> str:
     token = getattr(shared.opts, "poses_browser_pose_name", None)
     if token is None:
@@ -81,33 +81,42 @@ def img_path_get(img_path):
             images += img_path_get(item_path)
     return images
 
-def filter_images(images: list[str], pose_token: str, depth_token: str, canny_token: str):
+def filter_images(
+    images: list[str], pose_token: str, depth_token: str, canny_token: str
+):
     preview = []
     poses = []
     depths = []
     canny = []
     desc = []
     for image in images:
-        if("."+pose_token+"." in image):
+        if "." + pose_token + "." in image:
             poses.append(image)
-        elif("."+depth_token+"." in image):
+        elif "." + depth_token + "." in image:
             depths.append(image)
-        elif("."+canny_token+"." in image):
-            canny.append(image)            
-        elif(image.endswith(".txt")):
-            desc.append(image)            
+        elif "." + canny_token + "." in image:
+            canny.append(image)
+        elif image.endswith(".txt"):
+            desc.append(image)
         else:
             preview.append(image)
 
     return preview, poses, depths, canny, desc
 
-def construct_poses(preview: list[str], poses: list[str], depths: list[str], cannys: list[str], descs: list[str], pose_token: str, depth_token: str, canny_token: str):
+def construct_poses(
+    preview: list[str],
+    poses: list[str],
+    depths: list[str],
+    cannys: list[str],
+    descs: list[str],
+    pose_token: str,
+    depth_token: str,
+    canny_token: str,
+):
     full_images = []
     for image in preview:
         full_image = Pose(image)
         image_name, image_ext = os.path.splitext(image)
-
-
 
         try:
             pose = image_name + "." + pose_token + image_ext
@@ -121,14 +130,14 @@ def construct_poses(preview: list[str], poses: list[str], depths: list[str], can
             depth_index = depths.index(depth)
             full_image.depth = depths.pop(depth_index)
         except ValueError:
-            full_image.depth = None     
+            full_image.depth = None
 
         try:
             canny = image_name + "." + canny_token + image_ext
             canny_index = cannys.index(canny)
             full_image.canny = cannys.pop(canny_index)
         except ValueError:
-            full_image.canny = None                 
+            full_image.canny = None
 
         try:
             desc = image_name + ".txt"
@@ -138,10 +147,10 @@ def construct_poses(preview: list[str], poses: list[str], depths: list[str], can
                 full_image.desc = f.read()
 
         except ValueError:
-            full_image.depth = None                 
+            full_image.desc = None
 
-        full_images.append(full_image)   
-    
+        full_images.append(full_image)
+
     return full_images
 
 def get_preview(poses: list[Pose]):
@@ -152,10 +161,8 @@ def get_preview(poses: list[Pose]):
         else:
             preview.append(pose.preview)
     return preview
-        
 
 def on_ui_tabs():
-
     poses_dir = get_poses_dir()
     pose_token = get_token_pose()
     depth_token = get_token_depth()
@@ -163,19 +170,21 @@ def on_ui_tabs():
 
     images = img_path_get(poses_dir)
 
-    preview_images, poses, depths, cannys, descs = filter_images(images, pose_token, depth_token, canny_token)
+    preview_images, poses, depths, cannys, descs = filter_images(
+        images, pose_token, depth_token, canny_token
+    )
 
     tags = get_tags(preview_images, poses_dir)
 
     poses = construct_poses(
-        preview=preview_images, 
-        poses=poses, 
-        depths=depths, 
-        cannys=cannys, 
-        descs=descs, 
-        pose_token=pose_token, 
-        depth_token=depth_token, 
-        canny_token=canny_token
+        preview=preview_images,
+        poses=poses,
+        depths=depths,
+        cannys=cannys,
+        descs=descs,
+        pose_token=pose_token,
+        depth_token=depth_token,
+        canny_token=canny_token,
     )
 
     preview = get_preview(poses)
@@ -183,16 +192,14 @@ def on_ui_tabs():
     def filter_poses(tag: str):
         if tag == "":
             return preview
-        
+
         filtered = []
 
         for prev in preview:
-
             if type(prev) is list:
                 preview_img = prev[0]
             else:
                 preview_img = prev
-
 
             if tag in preview_img:
                 filtered.append(prev)
@@ -217,32 +224,36 @@ def on_ui_tabs():
 
         depth_updater = gr.Image.update(value=None, visible=False)
         canny_updater = gr.Image.update(value=None, visible=False)
-        updater = gr.Button.update(interactive = False)
+        updater = gr.Button.update(interactive=False)
 
-        if(found_pose):
-            if(found_pose.depth):
+        if found_pose:
+            if found_pose.depth:
                 depth_updater = gr.Image.update(value=found_pose.depth, visible=True)
-            if(found_pose.canny):
+            if found_pose.canny:
                 canny_updater = gr.Image.update(value=found_pose.canny, visible=True)
-            updater = gr.Button.update(interactive = True)
+            updater = gr.Button.update(interactive=True)
+
             return found_pose.pose, depth_updater, canny_updater, updater, updater
 
-
-
         return None, None, None, updater, updater
-    
-    subdirs_html = "".join([f"""
+
+    subdirs_html = "".join(
+        [
+            f"""
 <button class='lg secondary gradio-button custom-button{" search-all" if tag=="" else ""}' onclick='poses_browser_filter("{tag}")'>
 {html.escape(tag if tag!="" else "all")}
 </button>
-""" for tag in tags])
+"""
+            for tag in tags
+        ]
+    )
 
-    
     with gr.Blocks(analytics_enabled=False) as ui_component:
-
         with gr.Row():
             with gr.Column(scale=2):
-                search_textbox = gr.Textbox('', show_label=False, elem_id="poses_browser_search", visible=False)
+                search_textbox = gr.Textbox(
+                    "", show_label=False, elem_id="poses_browser_search", visible=False
+                )
                 with gr.Row():
                     gr.HTML(subdirs_html)
                 with gr.Row():
@@ -251,37 +262,49 @@ def on_ui_tabs():
                         preview=False,
                         allow_preview=False,
                         show_label=True,
-
                     ).style(columns=[4], rows=[4], object_fit="contain", height="auto")
             with gr.Column(scale=1):
-                txt2img_button = gr.Button(interactive=False, value="Send to txt2img", elem_id="poses_browser_txt2img_button")
-                img2img_button = gr.Button(interactive=False, value="Send to img2img", elem_id="poses_browser_img2img_button")
+                txt2img_button = gr.Button(
+                    interactive=False,
+                    value="Send to txt2img",
+                    elem_id="poses_browser_txt2img_button",
+                )
+                img2img_button = gr.Button(
+                    interactive=False,
+                    value="Send to img2img",
+                    elem_id="poses_browser_img2img_button",
+                )
                 pose_image = gr.Image(
-                    #value=selected.value.pose if selected.value else None,
+                    # value=selected.value.pose if selected.value else None,
                     label="Pose",
                     interactive=False,
-                    elem_id="poses_browser_pose_image"
+                    elem_id="poses_browser_pose_image",
                 ).style(object_fit="contain", height=300)
                 depth_image = gr.Image(
-                    #value=selected.value.depth if selected.value else None,
+                    # value=selected.value.depth if selected.value else None,
                     label="Depth",
                     interactive=False,
                     visible=False,
-                    elem_id="poses_browser_depth_image"
+                    elem_id="poses_browser_depth_image",
                 ).style(object_fit="contain", height=300)
                 canny_image = gr.Image(
-                    #value=selected.value.depth if selected.value else None,
+                    # value=selected.value.depth if selected.value else None,
                     label="Canny",
                     interactive=False,
                     visible=False,
-                    elem_id="poses_browser_canny_image"
+                    elem_id="poses_browser_canny_image",
                 ).style(object_fit="contain", height=300)
 
-            gallerie.select(get_select_index, None, [pose_image, depth_image, canny_image, txt2img_button, img2img_button])
+            gallerie.select(
+                get_select_index,
+                None,
+                [pose_image, depth_image, canny_image, txt2img_button, img2img_button],
+            )
             txt2img_button.click(fn=None, _js="poses_browser_send_txt2img")
             img2img_button.click(fn=None, _js="poses_browser_send_img2img")
 
-            search_textbox.change(fn=filter_poses, inputs=search_textbox, outputs=gallerie)
+            search_textbox.change(
+                fn=filter_poses, inputs=search_textbox, outputs=gallerie
+            )
 
         return [(ui_component, "Poses Browser", "poses_browser")]
-
