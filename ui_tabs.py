@@ -13,6 +13,10 @@ class Pose:
 
 class PosesBrowserPage:
     def __init__(self):
+        self.load_data()
+
+    def load_data(self):
+        helpers.log_debug("load_data")
         self.poses_dir = helpers.get_poses_dir()
         self.pose_token = helpers.get_token_pose()
         self.depth_token = helpers.get_token_depth()
@@ -106,10 +110,11 @@ class PosesBrowserPage:
     def get_preview(self):
         preview = []
         for pose in self.poses:
-            if pose.desc is not None:
-                preview.append([pose.preview, pose.desc])
-            else:
-                preview.append(pose.preview)
+            if pose.pose is not None:
+                if pose.desc is not None:
+                    preview.append([pose.preview, pose.desc])
+                else:
+                    preview.append(pose.preview)
         return preview
 
     def filter_poses(self, tag: str):
@@ -180,8 +185,12 @@ class PosesBrowserPage:
 
         return subdirs_html
 
-    def on_ui_tabs(self):
+    def reload(self):
+        self.load_data()
+        filtered, buttons = self.filter_poses("")
+        return filtered, buttons
 
+    def on_ui_tabs(self):
 
         with gr.Blocks(analytics_enabled=False) as ui_component:
             with gr.Row():
@@ -194,6 +203,11 @@ class PosesBrowserPage:
                     )
                     with gr.Row():
                         buttons_html = gr.HTML(self.get_buttons(""))
+                        refresh_button = gr.Button(
+                            value="Refresh",
+                            variant="secondary",
+ 
+                        ).style(full_width=False)
                     with gr.Row():
                         gallerie = gr.Gallery(
                             value=self.preview,
@@ -252,5 +266,7 @@ class PosesBrowserPage:
                 search_textbox.change(
                     fn=self.filter_poses, inputs=search_textbox, outputs=[gallerie, buttons_html]
                 )
+
+                refresh_button.click(fn=self.reload, inputs=[], outputs=[gallerie, buttons_html])
 
             return [(ui_component, "Poses Browser", "poses_browser")]
