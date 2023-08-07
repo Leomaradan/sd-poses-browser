@@ -3,7 +3,12 @@ import html
 import os
 import helpers
 
+
 class Pose:
+    """
+    A pose image. Contains the path to the preview image, pose image, depth image, canny image and description file.
+    """
+
     def __init__(self, preview):
         self.preview = preview
         self.pose = None
@@ -11,11 +16,19 @@ class Pose:
         self.canny = None
         self.desc = None
 
+
 class PosesBrowserPage:
+    """
+    The Poses Browser page.
+    """
+
     def __init__(self):
         self.load_data()
 
     def load_data(self):
+        """
+        Load the data for the Poses Browser.
+        """
         helpers.log_debug("load_data")
         self.poses_dir = helpers.get_poses_dir()
         self.pose_token = helpers.get_token_pose()
@@ -40,6 +53,9 @@ class PosesBrowserPage:
         self.preview = self.initial_preview
 
     def filter_images(self, images: list[str]):
+        """
+        Filter the images into preview, pose, depth, canny and description files.
+        """
         preview = []
         poses = []
         depths = []
@@ -67,6 +83,9 @@ class PosesBrowserPage:
         cannys: list[str],
         descs: list[str],
     ):
+        """
+        Construct the poses from the preview, pose, depth, canny and description files.
+        """
         full_images = []
         for image in preview:
             full_image = Pose(image)
@@ -108,6 +127,9 @@ class PosesBrowserPage:
         return full_images
 
     def get_preview(self):
+        """
+        Get the usable preview images. Unusable images are images without a pose image.
+        """
         preview = []
         for pose in self.poses:
             if pose.pose is not None:
@@ -118,6 +140,9 @@ class PosesBrowserPage:
         return preview
 
     def filter_poses(self, tag: str):
+        """
+        Filter the poses by tag. If the tag is empty, all poses are returned.
+        """
         buttons = self.get_buttons(tag)
         if tag == "":
             self.preview = self.initial_preview
@@ -138,6 +163,9 @@ class PosesBrowserPage:
         return filtered, buttons
 
     def get_select_index(self, evt: gr.SelectData):
+        """
+        Get the index of the selected pose, then update the thumbnail icons and buttons.
+        """
         # Find the image path from index
         image = self.preview[evt.index]
 
@@ -171,6 +199,9 @@ class PosesBrowserPage:
         return None, None, None, updater, updater
 
     def get_buttons(self, search_textbox: str):
+        """
+        Get the tag buttons.
+        """
 
         subdirs_html = "".join(
             [
@@ -186,15 +217,22 @@ class PosesBrowserPage:
         return subdirs_html
 
     def reload(self):
+        """
+        Reload the data, then reset the current filter
+        """
         self.load_data()
         filtered, buttons = self.filter_poses("")
         return filtered, buttons
 
     def on_ui_tabs(self):
+        """
+        Construct the Poses Browser page.
+        """
 
         with gr.Blocks(analytics_enabled=False) as ui_component:
             with gr.Row():
                 with gr.Column(scale=2):
+                    # This textbox act as a buffer for the tag buttons
                     search_textbox = gr.Textbox(
                         "",
                         show_label=False,
@@ -206,7 +244,6 @@ class PosesBrowserPage:
                         refresh_button = gr.Button(
                             value="Refresh",
                             variant="secondary",
- 
                         ).style(full_width=False)
                     with gr.Row():
                         gallerie = gr.Gallery(
@@ -260,13 +297,20 @@ class PosesBrowserPage:
                         img2img_button,
                     ],
                 )
+
+                # This callback target the global function poses_browser_send_*
                 txt2img_button.click(fn=None, _js="poses_browser_send_txt2img")
                 img2img_button.click(fn=None, _js="poses_browser_send_img2img")
 
+                # A tag button has been clicked, updating the textbox. We can now filter the poses using the textbox value.
                 search_textbox.change(
-                    fn=self.filter_poses, inputs=search_textbox, outputs=[gallerie, buttons_html]
+                    fn=self.filter_poses,
+                    inputs=search_textbox,
+                    outputs=[gallerie, buttons_html],
                 )
 
-                refresh_button.click(fn=self.reload, inputs=[], outputs=[gallerie, buttons_html])
+                refresh_button.click(
+                    fn=self.reload, inputs=[], outputs=[gallerie, buttons_html]
+                )
 
             return [(ui_component, "Poses Browser", "poses_browser")]
