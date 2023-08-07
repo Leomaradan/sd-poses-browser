@@ -60,7 +60,12 @@ const posesBrowser = () => {
     }
 
     const controlNetUnits = (tabName) => {
-        return gradioApp().getElementById(tabName + "_#txt2img_controlnet .cnet-unit-tab").length
+        const unitTab = gradioApp().getElementById(tabName + "_controlnet .cnet-unit-tab");
+        if(unitTab === null) {
+            return 0;
+        }
+
+        return unitTab.length
     }
 
     const prepareImage = async (image, controlnetNum) => {
@@ -176,7 +181,7 @@ const poses_browser = posesBrowser()
 const poses_browser_send = async (tabName) => {
     const { pose, depth, canny } = poses_browser.getImages();
 
-    window[`switch_to_${tabName}`]();
+    await window[`switch_to_${tabName}`]();
 
     const numberOfTabs = poses_browser.controlNetUnits(tabName);
     if (numberOfTabs !== 0) {
